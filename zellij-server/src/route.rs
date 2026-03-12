@@ -1760,6 +1760,61 @@ pub(crate) fn route_action(
                 ))
                 .with_context(err_context)?;
         },
+        Action::GetPaneCwd { pane_id } => {
+            use crossbeam::channel::unbounded;
+            use std::time::Duration;
+            use zellij_utils::data::GetPaneCwdResponse;
+
+            // Determine which pane to query
+            let pane_to_query = match pane_id {
+                Some(pid) => pid,
+                None => {
+                    // For now, require pane_id - could expand later to get focused pane
+                    send_error_to_client(
+                        cli_client_id,
+                        os_input.as_ref(),
+                        "Error: pane_id is required for GetPaneCwd action",
+                    );
+                    drop(NotificationEnd::new(completion_tx));
+                    return Ok((should_break, None));
+                },
+            };
+
+            let (cwd_sender, cwd_receiver) = unbounded();
+            senders
+                .send_to_pty(PtyInstruction::GetPaneCwd {
+                    pane_id: pane_to_query.into(),
+                    response_channel: cwd_sender,
+                })
+                .with_context(err_context)?;
+
+            // Wait for response with timeout
+            match cwd_receiver.recv_timeout(Duration::from_millis(500)) {
+                Ok(GetPaneCwdResponse::Ok(cwd)) => {
+                    // Send the CWD path back to the CLI client
+                    send_output_to_client(
+                        cli_client_id,
+                        os_input.as_ref(),
+                        vec![cwd.to_string_lossy().to_string()],
+                    );
+                },
+                Ok(GetPaneCwdResponse::Err(e)) => {
+                    send_error_to_client(
+                        cli_client_id,
+                        os_input.as_ref(),
+                        &format!("Error: {}", e),
+                    );
+                },
+                Err(e) => {
+                    send_error_to_client(
+                        cli_client_id,
+                        os_input.as_ref(),
+                        &format!("Error: Timeout waiting for CWD response: {}", e),
+                    );
+                },
+            }
+            drop(NotificationEnd::new(completion_tx));
+        },
         Action::TogglePaneInGroup => {
             senders
                 .send_to_screen(ScreenInstruction::TogglePaneInGroup(

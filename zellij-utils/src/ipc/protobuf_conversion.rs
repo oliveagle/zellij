@@ -1468,6 +1468,10 @@ impl From<crate::input::actions::Action>
                     bg,
                 })
             },
+            crate::input::actions::Action::GetPaneCwd { .. } => {
+                // GetPaneCwd is a CLI-only action, not supported in protobuf
+                return Self::default();
+            },
         };
 
         Self {

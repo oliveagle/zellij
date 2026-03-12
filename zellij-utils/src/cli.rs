@@ -762,6 +762,12 @@ pub enum CliAction {
     },
     /// Dump current layout to stdout
     DumpLayout,
+    /// Get the current working directory of a pane
+    GetPaneCwd {
+        /// The pane_id of the pane, eg. terminal_1, plugin_2 or 3 (equivalent to terminal_3). If not specified, uses the focused pane.
+        #[clap(short, long, value_parser)]
+        pane_id: Option<String>,
+    },
     /// Save the current session state to disk immediately
     SaveSession,
     /// Open the pane scrollback in your default editor

@@ -536,6 +536,11 @@ pub enum Action {
         pane_id: PaneId,
         borderless: bool,
     },
+    /// Get the current working directory of a pane
+    /// Returns: CWD path as string
+    GetPaneCwd {
+        pane_id: Option<PaneId>,
+    },
     TogglePaneInGroup,
     ToggleGroupMarking,
 }
@@ -1583,6 +1588,25 @@ impl Action {
                         pane_id_str
                     )),
                 }
+            },
+            CliAction::GetPaneCwd { pane_id } => match pane_id {
+                Some(pane_id_str) => {
+                    let parsed_pane_id = PaneId::from_str(&pane_id_str);
+                    match parsed_pane_id {
+                        Ok(parsed_pane_id) => {
+                            Ok(vec![Action::GetPaneCwd {
+                                pane_id: Some(parsed_pane_id),
+                            }])
+                        },
+                        Err(_e) => {
+                            Err(format!(
+                                "Malformed pane id: {}, expecting either a bare integer (eg. 1), a terminal pane id (eg. terminal_1) or a plugin pane id (eg. plugin_1)",
+                                pane_id_str
+                            ))
+                        }
+                    }
+                },
+                None => Ok(vec![Action::GetPaneCwd { pane_id: None }]),
             },
             CliAction::Detach => Ok(vec![Action::Detach]),
             CliAction::SwitchSession {

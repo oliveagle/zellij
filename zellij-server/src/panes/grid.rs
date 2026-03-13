@@ -3331,22 +3331,38 @@ impl Perform for Grid {
 
             // Set clipboard.
             b"52" => {
-                if params.len() < 3 {
+                if params.len() < 2 {
                     return;
                 }
 
                 let _clipboard = params[1].get(0).unwrap_or(&b'c');
-                match params[2] {
-                    b"?" => {
-                        // TBD: paste from own clipboard - currently unsupported
-                    },
-                    base64 => {
-                        if let Ok(bytes) = base64::decode(base64) {
-                            if let Ok(string) = String::from_utf8(bytes) {
-                                self.pending_clipboard_update = Some(string);
+                if params.len() >= 3 {
+                    match params[2] {
+                        b"?" => {
+                            // Query: respond with current selection if available
+                            if let Some(selected_text) = self.get_selected_text() {
+                                let base64_content = base64::encode(&selected_text);
+                                let response = format!("\x1b]52;c;{}\x1b\\", base64_content);
+                                self.pending_messages_to_pty
+                                    .push(response.as_bytes().to_vec());
                             }
-                        };
-                    },
+                        },
+                        base64 => {
+                            if let Ok(bytes) = base64::decode(base64) {
+                                if let Ok(string) = String::from_utf8(bytes) {
+                                    self.pending_clipboard_update = Some(string);
+                                }
+                            };
+                        },
+                    }
+                } else {
+                    // No data parameter - treat as query
+                    if let Some(selected_text) = self.get_selected_text() {
+                        let base64_content = base64::encode(&selected_text);
+                        let response = format!("\x1b]52;c;{}\x1b\\", base64_content);
+                        self.pending_messages_to_pty
+                            .push(response.as_bytes().to_vec());
+                    }
                 }
             },
 

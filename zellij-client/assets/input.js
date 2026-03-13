@@ -26,6 +26,41 @@ export function setupInputHandlers(term, sendFunction) {
                 // pass cmd-v onwards so that paste is interpreted by xterm.js
                 return;
             }
+            // Handle Cmd+C (Mac) and Ctrl+Shift+C (Linux/Windows) for copy
+            // Send OSC 52 query to request current selection from zellij
+            if ((isMac() && ev.key == "c" && ev.metaKey) ||
+                (ev.key == "C" && ev.ctrlKey && ev.shiftKey)) {
+                ev.preventDefault();
+                // First try browser's native selection (works if zellij created one)
+                const browserSel = window.getSelection();
+                if (browserSel && browserSel.toString().trim()) {
+                    const text = browserSel.toString();
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    try {
+                        document.execCommand('copy');
+                        console.log('[clipboard] Copied via browser selection');
+                        if (typeof showClipboardToast === 'function') {
+                            showClipboardToast('📋 Copied');
+                        }
+                    } catch (err) {
+                        console.error('[clipboard] Copy failed:', err);
+                    }
+                    document.body.removeChild(textarea);
+                } else {
+                    // No browser selection - send OSC 52 query to zellij
+                    // OSC 52 query format: ESC ] 52 ; c ; ? ST
+                    // zellij will respond with: ESC ] 52 ; c ; <base64-data> ST
+                    console.log('[clipboard] Sending OSC 52 query to zellij');
+                    // Send OSC 52 query - zellij will respond with selection content
+                    sendFunction('\x1b]52;c;?\x1b\\');
+                }
+                return false;
+            }
             if (hasModifiersToHandle(ev)) {
                 ev.preventDefault();
                 encode_kitty_key(ev, sendFunction);
@@ -145,11 +180,33 @@ export function setupInputHandlers(term, sendFunction) {
         { passive: true }
     );
 
-    // Context menu handler
+    // Context menu handler - also handles right-click copy
     document.addEventListener("contextmenu", function (event) {
         if (event.altKey) {
             // this is so that when the user does an alt-right-click to ungroup panes, the context menu will not appear
             event.preventDefault();
+        } else {
+            // Try to copy selected text on right-click
+            const selection = window.getSelection();
+            if (selection && selection.toString().trim()) {
+                event.preventDefault();
+                // Copy to clipboard using textarea + execCommand
+                const textarea = document.createElement('textarea');
+                textarea.value = selection.toString();
+                textarea.style.position = 'fixed';
+                textarea.style.left = '0';
+                textarea.style.top = '0';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    console.log('Right-click copied:', selection.toString().substring(0, 50));
+                } catch (err) {
+                    console.error('Right-click copy failed:', err);
+                }
+                document.body.removeChild(textarea);
+            }
         }
     });
 

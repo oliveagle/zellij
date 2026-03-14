@@ -906,12 +906,24 @@ impl MouseHandler {
         client_id: ClientId,
     ) -> Result<MouseEffect> {
         let err_context = || "failed to copy selection";
-        if let Some(pane) = tab.get_pane_with_id_mut(pane_id) {
-            if let Some(selected_text) = pane.get_selected_text(client_id) {
-                tab.write_selection_to_clipboard(&selected_text)
-                    .with_context(err_context)?;
-                return Ok(MouseEffect::leave_clipboard_message());
+
+        // First, get the selected text
+        let selected_text = if let Some(pane) = tab.get_pane_with_id_mut(pane_id) {
+            pane.get_selected_text(client_id)
+        } else {
+            None
+        };
+
+        if let Some(selected_text) = selected_text {
+            tab.write_selection_to_clipboard(&selected_text)
+                .with_context(err_context)?;
+
+            // Clear selection after copy
+            if let Some(pane) = tab.get_pane_with_id_mut(pane_id) {
+                pane.reset_selection(Some(client_id));
             }
+
+            return Ok(MouseEffect::state_changed_and_leave_clipboard_message());
         }
         Ok(MouseEffect::default())
     }

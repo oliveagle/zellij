@@ -625,6 +625,7 @@ impl Pane for TerminalPane {
 
     fn reset_selection(&mut self, _client_id: Option<ClientId>) {
         self.grid.reset_selection();
+        self.set_should_render(true);
     }
 
     fn get_selected_text(&self, _client_id: ClientId) -> Option<String> {

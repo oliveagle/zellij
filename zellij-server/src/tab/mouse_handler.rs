@@ -923,6 +923,9 @@ impl MouseHandler {
                 pane.reset_selection(Some(client_id));
             }
 
+            // Clear the selecting state
+            tab.selecting_with_mouse_in_pane = None;
+
             return Ok(MouseEffect::state_changed_and_leave_clipboard_message());
         }
         Ok(MouseEffect::default())

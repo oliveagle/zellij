@@ -126,6 +126,9 @@ enum MouseAction {
     EndSelection {
         position: Position,
     },
+    CopySelection {
+        pane_id: PaneId,
+    },
     StartMovingFloatingPane {
         position: Position,
     },
@@ -734,6 +737,9 @@ impl MouseHandler {
             MouseAction::EndSelection { position } => {
                 Self::execute_end_selection(tab, position, client_id)
             },
+            MouseAction::CopySelection { pane_id } => {
+                Self::execute_copy_selection(tab, pane_id, client_id)
+            },
             MouseAction::StartMovingFloatingPane { position } => {
                 Self::execute_move_floating_pane(tab, position)
             },
@@ -892,6 +898,22 @@ impl MouseHandler {
         } else {
             Ok(MouseEffect::default())
         }
+    }
+
+    fn execute_copy_selection(
+        tab: &mut Tab,
+        pane_id: PaneId,
+        client_id: ClientId,
+    ) -> Result<MouseEffect> {
+        let err_context = || "failed to copy selection";
+        if let Some(pane) = tab.get_pane_with_id_mut(pane_id) {
+            if let Some(selected_text) = pane.get_selected_text(client_id) {
+                tab.write_selection_to_clipboard(&selected_text)
+                    .with_context(err_context)?;
+                return Ok(MouseEffect::leave_clipboard_message());
+            }
+        }
+        Ok(MouseEffect::default())
     }
 
     fn execute_move_floating_pane(tab: &mut Tab, position: Position) -> Result<MouseEffect> {
@@ -1223,6 +1245,11 @@ impl MouseHandler {
                 return Ok(MouseAction::NoAction);
             };
             let is_active_pane = Some(pane_id) == ctx.active_pane_id;
+            // Right-click release: copy selection (hardclaw feature)
+            if event.event_type == MouseEventType::Release && is_active_pane {
+                return Ok(MouseAction::CopySelection { pane_id });
+            }
+            // Right-click press or motion: send to terminal
             if is_active_pane {
                 return Ok(MouseAction::SendToTerminal {
                     pane_id,
